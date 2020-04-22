@@ -87,10 +87,18 @@ bool LEFT = false;
 bool DOWN = false;
 bool RIGHT = false;
 
-// System state has changed flag
-bool state_changed = false;
+// Last Serial Message
+String last_message = "";
 
 void process_incoming_serial() {
+
+  FWD = false;
+  BWD = false;
+  UP = false;
+  LEFT = false;
+  DOWN = false;
+  RIGHT = false;
+
   while (Serial.available() > 0) {
     char data = Serial.read();
 
@@ -130,6 +138,18 @@ void process_incoming_serial() {
       sas_mode = TO_TARGET;
     else if (data == 'Q')
       sas_mode = ANTI_TARGET;
+    else if (data == 'R')
+      FWD = true;
+    else if (data == 'S')
+      BWD = true;
+    else if (data == 'T')
+      UP = true;
+    else if (data == 'U')
+      DOWN = true;
+    else if (data == 'V')
+      LEFT = true;
+    else if (data == 'W')
+      RIGHT = true;
   }
 }
 
@@ -164,7 +184,7 @@ void update_system_state() {
       break;
   }
 
-  if (control_mode == MODE_SAS) {
+  if (SAS && control_mode == MODE_SAS) {
     switch (sas_mode) {
       case PROGRADE:
         value += pow(2, FWD_LED);
@@ -221,52 +241,63 @@ void update_system_state() {
 }
 
 void send_state_to_serial() {
+  String new_message = "";
+
   if (SAS) {
-    Serial.print('A');
+    new_message += 'A';
   } else {
-    Serial.print('B');
+    new_message += 'B';
   }
 
   if (RCS) {
-    Serial.print('C');
+    new_message += 'C';
   } else {
-    Serial.print('D');
+    new_message += 'D';
   }
 
   if (speed_mode == ORBIT)
-    Serial.print('E');
+    new_message += 'E';
   else if (speed_mode == TARGET)
-    Serial.print('F');
+    new_message += 'F';
   else if (speed_mode == SURFACE)
-    Serial.print('G');
+    new_message += 'G';
 
   if (sas_mode == PROGRADE)
-    Serial.print('H');
+    new_message += 'H';
   else if (sas_mode == RETROGRADE)
-    Serial.print('I');
+    new_message += 'I';
   else if (sas_mode == NORMAL)
-    Serial.print('J');
+    new_message += 'J';
   else if (sas_mode == ANTI_NORMAL)
-    Serial.print('K');
+    new_message += 'K';
   else if (sas_mode == RADIAL)
-    Serial.print('L');
+    new_message += 'L';
   else if (sas_mode == ANTI_RADIAL)
-    Serial.print('M');
+    new_message += 'M';
   else if (sas_mode == STABILITY_ASSIST)
-    Serial.print('N');
+    new_message += 'N';
   else if (sas_mode == MANEUVER)
-    Serial.print('O');
+    new_message += 'O';
   else if (sas_mode == TO_TARGET)
-    Serial.print('P');
+    new_message += 'P';
   else if (sas_mode == ANTI_TARGET)
-    Serial.print('Q');
+    new_message += 'Q';
 
-  if (FWD) Serial.print('R');
-  if (BWD) Serial.print('S');
-  if (UP) Serial.print('T');
-  if (DOWN) Serial.print('U');
-  if (LEFT) Serial.print('V');
-  if (RIGHT) Serial.print('W');
+  if (FWD) new_message += 'R';
+  if (BWD) new_message += 'S';
+  if (UP) new_message += 'T';
+  if (DOWN) new_message += 'U';
+  if (LEFT) new_message += 'V';
+  if (RIGHT) new_message += 'W';
+
+  if (!(FWD || BWD || UP || DOWN || LEFT || RIGHT)) { // no RCS translation
+    new_message += 'X';
+  }
+
+  if (new_message != last_message) {
+    Serial.println(new_message);
+    last_message = new_message;
+  }
 }
 
 void check_and_send_buttons_state() {
@@ -289,7 +320,6 @@ void check_and_send_buttons_state() {
     if (!RCS_button_pressed) {
       RCS = !RCS;
       RCS_button_pressed = true;
-      send_state_to_serial();
     }
   } else {
     RCS_button_pressed = false;
@@ -299,7 +329,6 @@ void check_and_send_buttons_state() {
     if (!SAS_button_pressed) {
       SAS = !SAS;
       SAS_button_pressed = true;
-      send_state_to_serial();
     }
   } else {
     SAS_button_pressed = false;
@@ -325,7 +354,6 @@ void check_and_send_buttons_state() {
         speed_mode = SURFACE;
       else if (speed_mode == SURFACE)
         speed_mode = ORBIT;
-      send_state_to_serial();
       Referential_button_pressed = true;
     }
   } else {
@@ -337,7 +365,6 @@ void check_and_send_buttons_state() {
     if (FWD_press) {
       if (!FWD_button_pressed) {
         sas_mode = PROGRADE;
-        send_state_to_serial();
         FWD_button_pressed = true;
       }
     } else {
@@ -346,7 +373,6 @@ void check_and_send_buttons_state() {
     if (BWD_press) {
       if (!BWD_button_pressed) {
         sas_mode = RETROGRADE;
-        send_state_to_serial();
         BWD_button_pressed = true;
       }
     } else {
@@ -355,7 +381,6 @@ void check_and_send_buttons_state() {
     if (UP_press) {
       if (!UP_button_pressed) {
         sas_mode = NORMAL;
-        send_state_to_serial();
         UP_button_pressed = true;
       }
     } else {
@@ -364,7 +389,6 @@ void check_and_send_buttons_state() {
     if (DOWN_press) {
       if (!DOWN_button_pressed) {
         sas_mode = ANTI_NORMAL;
-        send_state_to_serial();
         DOWN_button_pressed = true;
       }
     } else {
@@ -373,7 +397,6 @@ void check_and_send_buttons_state() {
     if (LEFT_press) {
       if (!LEFT_button_pressed) {
         sas_mode = RADIAL;
-        send_state_to_serial();
         LEFT_button_pressed = true;
       }
     } else {
@@ -382,7 +405,6 @@ void check_and_send_buttons_state() {
     if (RIGHT_press) {
       if (!RIGHT_button_pressed) {
         sas_mode = ANTI_RADIAL;
-        send_state_to_serial();
         RIGHT_button_pressed = true;
       }
     } else {
@@ -391,7 +413,6 @@ void check_and_send_buttons_state() {
     if (MAN_SAS_press) {
       if (!MAN_SAS_button_pressed) {
         sas_mode = STABILITY_ASSIST;
-        send_state_to_serial();
         MAN_SAS_button_pressed = true;
       }
     } else {
@@ -400,7 +421,6 @@ void check_and_send_buttons_state() {
     if (Node_press) {
       if (!Node_button_pressed) {
         sas_mode = MANEUVER;
-        send_state_to_serial();
         Node_button_pressed = true;
       }
     } else {
@@ -409,7 +429,6 @@ void check_and_send_buttons_state() {
     if (TGT_pro_press) {
       if (!TGT_pro_button_pressed) {
         sas_mode = TO_TARGET;
-        send_state_to_serial();
         TGT_pro_button_pressed = true;
       }
     } else {
@@ -418,7 +437,6 @@ void check_and_send_buttons_state() {
     if (TGT_retro_press) {
       if (!TGT_retro_button_pressed) {
         sas_mode = ANTI_TARGET;
-        send_state_to_serial();
         TGT_retro_button_pressed = true;
       }
     } else {
@@ -428,37 +446,31 @@ void check_and_send_buttons_state() {
   } else {  // In RCS mode
     if (FWD_press) {
       FWD = true;
-      send_state_to_serial();
     } else {
       FWD = false;
     }
     if (BWD_press) {
       BWD = true;
-      send_state_to_serial();
     } else {
       BWD = false;
     }
     if (UP_press) {
       UP = true;
-      send_state_to_serial();
     } else {
       UP = false;
     }
     if (DOWN_press) {
       DOWN = true;
-      send_state_to_serial();
     } else {
       DOWN = false;
     }
     if (LEFT_press) {
       LEFT = true;
-      send_state_to_serial();
     } else {
       LEFT = false;
     }
     if (RIGHT_press) {
       RIGHT = true;
-      send_state_to_serial();
     } else {
       RIGHT = false;
     }
@@ -496,17 +508,11 @@ void setup() {
 }
 
 void loop() {
-
-  int start_time = millis();
-
   process_incoming_serial();
 
   update_system_state();
 
   check_and_send_buttons_state();
 
-  int elapsed = millis() - start_time;
-  if (elapsed < 20) {
-    delay(20 - elapsed);
-  }
+  send_state_to_serial();
 }
